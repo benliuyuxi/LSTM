@@ -1,8 +1,0 @@
-jupyter
-matplotlib
-keras
-pandas
-pylint
-scipy
-sklearn
-tensorflow

@@ -1,2 +1,1 @@
-# LSTM
-Learning LSTM
+# ai-funds
