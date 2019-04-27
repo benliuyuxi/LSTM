@@ -44,7 +44,7 @@ def get_r(raw_data, plot=False):
     '''
 
 
-    logger.info('Get rates of return from raw data ...')
+    logger.info('Get rates of return from raw data CSV file: {0}'.format(raw_data))
 
     df_raw_data = pd.read_csv(raw_data)
     df_raw_data.set_index('date', inplace=True)
@@ -237,13 +237,14 @@ def minimum_variance_portfolio(b, c, Sigma_inv, C_0):
     return sigma_mv, mu_mv, theta_mv
 
 
-def tangency_portfolio(a, b, c, mu, Sigma_inv, C_0):
+def tangency_portfolio(a, b, c, d, mu, Sigma_inv, C_0):
     ''' Calculate sigma_tg, mu_tg and theta_tg
 
     Args:
         a (scalar): 
         b (scalar): 
         c (scalar): 
+        d (scalar):
         mu (ndarray): dimensions n x 1
         Sigma_inv (ndarray): dimensions n x n
         C_0 (scalar): capital that can be invested
@@ -349,70 +350,53 @@ def markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma):
 
 
 
+def start(raw_data):
+    ''' Start portfolio optimization
+
+    Args:
+        raw_data (string): 
+
+    Raises:
+
+    Returns:
+        sigma_opt (scalar, or ndarray): 
+        mu_opt (scalar, or ndarray): 
+        theta_opt (ndarray, or array of ndarray): 
+        sr_opt (scalar, or ndarray): Sharpe Ratio
+    '''
+
+    r = get_r(raw_data)
+
+    mu_p = np.arange(start=-0.005, stop=0.005, step=0.0001) # mu_p defines a range of possible portfolio returns
+    C_0 = 1
+
+    gamma = np.array([0.5, 1, 2, 3, 4])
+    a, b, c, d, mu, Sigma_inv = get_efficient_frontier_params(mu=None, Sigma=None, r=r)
+
+    sigma_p, theta_ef = efficient_frontier(a, b, c, d, mu, Sigma_inv, C_0, mu_p)
+    sigma_mv, mu_mv, theta_mv = minimum_variance_portfolio(b, c, Sigma_inv, C_0)
+    sigma_tg, mu_tg, theta_tg = tangency_portfolio(a, b, c, d, mu, Sigma_inv, C_0)
+    sigma_opt, mu_opt, theta_opt, sr_opt = markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma)
+
+    return sigma_opt, mu_opt
 
 
+    # plt.figure(figsize=(15,10))
+    # # plt.plot(<X AXIS VALUES HERE>, <Y AXIS VALUES HERE>, 'line type', label='label here')
+    # plt.plot(sigma_p, mu_p, label='Efficient Frontier')
+
+    # plt.plot(sigma_mv, mu_mv, 'o', label='Minimum variance portfolio')
+    # plt.annotate(xy=[sigma_mv, mu_mv], s='({0:.3f}, {1:.3f})'.format(sigma_mv, mu_mv))
+
+    # # plt.plot(sigma_tg, mu_tg, 'o', label='Tangency portfolio')
+    # plt.plot(sigma_opt, mu_opt, 'o', label='Markowitz optimal portfolio')
+    # for i in np.arange(gamma.shape[0]):
+    #     plt.annotate(xy=[sigma_opt[i], mu_opt[i]], s='({0:.3f}, {1:.3f}), gamma = {2}, Sharpe Ratio = {3:.3f}'.format(sigma_opt[i], mu_opt[i], gamma[i], sr_opt[i]))
+
+    # plt.title('Overview')
+    # plt.xlabel('Portfolio standard deviation (i.e. risk)')
+    # plt.ylabel('Mean portfolio return (i.e. return)')
+    # plt.legend(loc='best')
 
 
-
-
-
-
-
-r = get_r('ai-funds-raw-data.csv')
-
-mu_p = np.arange(start=-0.005, stop=0.005, step=0.0001) # mu_p defines a range of possible portfolio returns
-C_0 = 1
-
-gamma = np.array([0.5, 1, 2, 3, 4])
-
-
-
-
-
-
-
-
-
-a, b, c, d, mu, Sigma_inv = get_efficient_frontier_params(mu=None, Sigma=None, r=r)
-
-
-
-
-
-
-sigma_p, theta_ef = efficient_frontier(a, b, c, d, mu, Sigma_inv, C_0, mu_p)
-sigma_mv, mu_mv, theta_mv = minimum_variance_portfolio(b, c, Sigma_inv, C_0)
-sigma_tg, mu_tg, theta_tg = tangency_portfolio(a, b, c, mu, Sigma_inv, C_0)
-sigma_opt, mu_opt, theta_opt, sr_opt = markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma)
-
-
-
-
-
-
-
-
-
-
-
-
-
-plt.figure(figsize=(15,10))
-# plt.plot(<X AXIS VALUES HERE>, <Y AXIS VALUES HERE>, 'line type', label='label here')
-plt.plot(sigma_p, mu_p, label='Efficient Frontier')
-
-plt.plot(sigma_mv, mu_mv, 'o', label='Minimum variance portfolio')
-plt.annotate(xy=[sigma_mv, mu_mv], s='({0:.3f}, {1:.3f})'.format(sigma_mv, mu_mv))
-
-# plt.plot(sigma_tg, mu_tg, 'o', label='Tangency portfolio')
-plt.plot(sigma_opt, mu_opt, 'o', label='Markowitz optimal portfolio')
-for i in np.arange(gamma.shape[0]):
-    plt.annotate(xy=[sigma_opt[i], mu_opt[i]], s='({0:.3f}, {1:.3f}), gamma = {2}, Sharpe Ratio = {3:.3f}'.format(sigma_opt[i], mu_opt[i], gamma[i], sr_opt[i]))
-
-plt.title('Overview')
-plt.xlabel('Portfolio standard deviation (i.e. risk)')
-plt.ylabel('Mean portfolio return (i.e. return)')
-plt.legend(loc='best')
-
-
-plt.show()
+    # plt.show()
