@@ -3,12 +3,19 @@
 {% block content %}
     <body>
         <h1>Portfolio optimization</h1>
+        
         <form action="{{ url_for('index') }}" method="POST">
-            Raw data file name:<br>
-            <input type="text" name="raw_data">            
-            <input type="submit">
+            <fieldset>
+                <legend>Parameters</legend>
+                Raw data file name:<br>
+                <input type="text" name="raw_data">
+                <br>
+                Gamma:<br>
+                <input type="text" name="gamma">
+                <input type="submit">
+            </fieldset>
         </form>
-        <p>Raw data file is {{raw_data}}</p>
+        <p>{{file_status}}</p>
         <br>
         <p>
             Markowitz optimal portfolio:

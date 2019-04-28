@@ -26,25 +26,28 @@ logger.addHandler(ch)
 
 
 
-def get_r(raw_data, plot=False):
-    ''' 
+
+
+# Set numpy print options
+np.set_printoptions(precision=3)
+
+
+def get_raw_data(raw_data, plot=False):
+    ''' Get dataframe of raw data
     Args:
         
-        raw_data (string): 
+        raw_data (string): path to the raw data CSV file
         plot (boolean): optional, default False. whether plots should be made.
 
     Raises:
 
     Returns:
-        r (ndarray): rate of return matrix with dimensions n x t
-                        n: number of assets
-                        t: number of timestamps
+        df_raw_data (dataframe): 
 
-                        This is calculated and converted from DataFrame of raw data
     '''
 
 
-    logger.info('Get rates of return from raw data CSV file: {0}'.format(raw_data))
+    logger.info('Get raw data from CSV file: {0}'.format(raw_data))
 
     df_raw_data = pd.read_csv(raw_data)
     df_raw_data.set_index('date', inplace=True)
@@ -59,6 +62,30 @@ def get_r(raw_data, plot=False):
     else:
         pass
 
+    return df_raw_data
+
+
+
+
+def get_r(df_raw_data, plot=False):
+    ''' Get rate of return matrix from dataframe of raw data
+    Args:
+        
+        df_raw_data (dataframe): 
+        plot (boolean): optional, default False. whether plots should be made.
+
+    Raises:
+
+    Returns:
+        r (ndarray): rate of return matrix with dimensions n x t
+                        n: number of assets
+                        t: number of timestamps
+
+                        This is calculated and converted from DataFrame of raw data
+    '''
+
+
+    logger.info('Get rates of return from dataframe of raw data ...')
 
     df_r = df_raw_data.pct_change().dropna() # Calculate rates of return using percentage change method
 
@@ -83,7 +110,6 @@ def get_r(raw_data, plot=False):
         pass
 
     return r
-
 
 
 def get_efficient_frontier_params(mu=None, Sigma=None, r=None):
@@ -203,7 +229,7 @@ def efficient_frontier(a, b, c, d, mu, Sigma_inv, C_0, mu_p):
     return sigma_p, theta_ef
 
 
-def minimum_variance_portfolio(b, c, Sigma_inv, C_0):
+def portfolio_minimum_variance(b, c, Sigma_inv, C_0):
     ''' Calculate sigma_mv, mu_mv and theta_mv
 
     Args:
@@ -237,7 +263,7 @@ def minimum_variance_portfolio(b, c, Sigma_inv, C_0):
     return sigma_mv, mu_mv, theta_mv
 
 
-def tangency_portfolio(a, b, c, d, mu, Sigma_inv, C_0):
+def portfolio_tangency(a, b, c, d, mu, Sigma_inv, C_0):
     ''' Calculate sigma_tg, mu_tg and theta_tg
 
     Args:
@@ -285,7 +311,7 @@ def tangency_portfolio(a, b, c, d, mu, Sigma_inv, C_0):
     return sigma_tg_2, mu_tg_2, theta_tg
 
 
-def markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma):
+def portfolio_markowitz(a, b, c, d, mu, Sigma_inv, C_0, gamma):
     ''' Calculate sigma_opt, mu_opt and theta_opt
 
     Args:
@@ -304,7 +330,7 @@ def markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma):
         sigma_opt (scalar, or ndarray): 
         mu_opt (scalar, or ndarray): 
         theta_opt (ndarray, or array of ndarray): 
-        sr_opt (scalar, or ndarray): Sharpe Ratio
+
     '''
 
     n = mu.shape[0]
@@ -319,17 +345,16 @@ def markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma):
 
         sigma_opt = np.sqrt( (a*c - b**2 + gamma**2 * C_0**2) / (c * gamma**2) )
         mu_opt = d/(c*gamma) + b*C_0/c
-        sr_opt = np.divide(mu_opt, sigma_opt)
 
         for i in np.arange(sigma_opt.shape[0]):
-            logger.info('(sigma_opt, mu_opt) = ({0}, {1}), gamma = {2}, Sharpe Ratio = {3}'.format(sigma_opt[i], mu_opt[i], gamma[i], sr_opt[i]))
+            logger.info('With gamma = {0}, (sigma_opt, mu_opt) = ({1}, {2})'.format(gamma[i], sigma_opt[i], mu_opt[i]))
 
         theta_opt = []
 
         for x in gamma:
             y = Sigma_inv.dot(mu)/x + Sigma_inv.dot(ones_matrix) * (C_0 - b/x)/c
 
-            logger.debug('\ntheta_opt at gamma = {0}\n{1}'.format(x, y))
+            logger.debug('\nWith gamma = {0}, theta_opt = \n{1}'.format(x, y))
             theta_opt.append( y )
 
 
@@ -338,19 +363,60 @@ def markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma):
 
         sigma_opt = np.sqrt( (a*c - b**2 + gamma**2 * C_0**2) / (c * gamma**2) )
         mu_opt = d/(c*gamma) + b*C_0/c
-        sr_opt = np.divide(mu_opt, sigma_opt)
 
-        logger.info('(sigma_opt, mu_opt) = ({0}, {1}), gamma = {2}, Sharpe Ratio = {3}'.format(sigma_opt, mu_opt, gamma, sr_opt))
+        logger.info('With gamma = {0}, (sigma_opt, mu_opt) = ({1}, {2})'.format(gamma, sigma_opt, mu_opt))
 
         theta_opt = Sigma_inv.dot(mu)/gamma + Sigma_inv.dot(ones_matrix) * (C_0 - b/gamma)/c
-        logger.debug('\ntheta_opt\n{0}'.format(theta_opt))
+        logger.debug('\nWith gamma = {0}, theta_opt = \n{1}'.format(gamma, theta_opt))
 
-    return sigma_opt, mu_opt, theta_opt, sr_opt
-
-
+    return sigma_opt, mu_opt, theta_opt
 
 
-def start(raw_data):
+
+
+
+
+def monitor_sharpe_ratio(sigma, mu):
+    ''' Calculate Sharpe ratio of given return and standard deviation
+
+    Args:
+        sigma (scalar or ndarray): 
+        mu (scalar or ndarray): 
+
+    Raises:
+
+    Returns:
+        sharpe_ratio (scalar, or ndarray): Sharpe Ratio
+    '''
+
+    if isinstance(sigma, (list, tuple, np.ndarray)) and isinstance(mu, (list, tuple, np.ndarray)):
+        logger.debug('Detected sigma and mu as arrays')
+
+        sharpe_ratio = np.divide(mu, sigma)
+
+        for i in np.arange(sigma.shape[0]):
+            logger.info('At ({0}, {1}), Sharpe Ratio = {2}'.format(sigma[i], mu[i], sharpe_ratio[i]))
+
+
+    elif np.ndim(sigma) == 0 and np.ndim(mu) == 0:
+        logger.debug('Detected sigma and mu as scalars')
+
+        sharpe_ratio = np.divide(mu, sigma)
+
+        logger.info('At ({0}, {1}), Sharpe Ratio = {2}'.format(sigma, mu, sharpe_ratio))
+
+    else:
+        if isinstance(sigma, (list, tuple, np.ndarray)) and np.ndim(mu) == 0:
+            raise ValueError('sigma is an array and mu is a scalar!')
+
+        else:
+            raise ValueError('sigma is a scalar and mu is an array!')
+
+
+    return sharpe_ratio
+
+
+def start(raw_data, portfolio_types=['markowitz', 'minimum_variance'], monitors=['sharpe_ratio'], plot=False):
     ''' Start portfolio optimization
 
     Args:
@@ -365,38 +431,99 @@ def start(raw_data):
         sr_opt (scalar, or ndarray): Sharpe Ratio
     '''
 
-    r = get_r(raw_data)
+    df_raw_data = get_raw_data(raw_data, plot)
+    r = get_r(df_raw_data, plot)
 
-    mu_p = np.arange(start=-0.005, stop=0.005, step=0.0001) # mu_p defines a range of possible portfolio returns
+    mu_p = np.arange(start=-0.005, stop=0.01, step=0.0001) # mu_p defines a range of possible portfolio returns
     C_0 = 1
 
-    gamma = np.array([0.5, 1, 2, 3, 4])
+    gamma = np.array([1, 2, 3, 4])
     a, b, c, d, mu, Sigma_inv = get_efficient_frontier_params(mu=None, Sigma=None, r=r)
-
     sigma_p, theta_ef = efficient_frontier(a, b, c, d, mu, Sigma_inv, C_0, mu_p)
-    sigma_mv, mu_mv, theta_mv = minimum_variance_portfolio(b, c, Sigma_inv, C_0)
-    sigma_tg, mu_tg, theta_tg = tangency_portfolio(a, b, c, d, mu, Sigma_inv, C_0)
-    sigma_opt, mu_opt, theta_opt, sr_opt = markowitz_optimal_portfolio(a, b, c, d, mu, Sigma_inv, C_0, gamma)
 
-    return sigma_opt, mu_opt
+    portfolios = []
+
+    for portfolio_type in portfolio_types:
+        if portfolio_type.lower() == 'minimum_variance':
+            sigma, mu, theta = portfolio_minimum_variance(b, c, Sigma_inv, C_0)
+
+            portfolio = {'portfolio_type': 'minimum_variance',
+                        'sigma': sigma,
+                        'mu': mu,
+                        'theta': theta,
+                        'data_type': 'array' if isinstance(sigma, (list, tuple, np.ndarray)) else 'scalar'}
+
+        elif portfolio_type.lower() == 'tangency':
+            sigma, mu, theta = portfolio_tangency(a, b, c, d, mu, Sigma_inv, C_0)
+
+            portfolio = {'portfolio_type': 'tangency',
+                        'sigma': sigma,
+                        'mu': mu,
+                        'theta': theta,
+                        'data_type': 'array' if isinstance(sigma, (list, tuple, np.ndarray)) else 'scalar'}
+
+        elif portfolio_type.lower() == 'markowitz':
+            sigma, mu, theta = portfolio_markowitz(a, b, c, d, mu, Sigma_inv, C_0, gamma)
+
+            portfolio = {'portfolio_type': 'markowitz',
+                        'sigma': sigma,
+                        'mu': mu,
+                        'theta': theta,
+                        'gamma': gamma,
+                        'data_type': 'array' if isinstance(sigma, (list, tuple, np.ndarray)) else 'scalar'}
+
+        else:
+            raise ValueError('Currently support these portfolio types only: minimum_variance, tangency, markowitz')
+
+        for monitor in monitors:
+            if monitor.lower() == 'sharpe_ratio':
+                portfolio['sharpe_ratio'] = monitor_sharpe_ratio(sigma, mu)
+            
+            else:
+                raise ValueError('Currently support these monitors only: sharpe_ratio')
+
+        
+        portfolios.append(portfolio)
 
 
-    # plt.figure(figsize=(15,10))
-    # # plt.plot(<X AXIS VALUES HERE>, <Y AXIS VALUES HERE>, 'line type', label='label here')
-    # plt.plot(sigma_p, mu_p, label='Efficient Frontier')
-
-    # plt.plot(sigma_mv, mu_mv, 'o', label='Minimum variance portfolio')
-    # plt.annotate(xy=[sigma_mv, mu_mv], s='({0:.3f}, {1:.3f})'.format(sigma_mv, mu_mv))
-
-    # # plt.plot(sigma_tg, mu_tg, 'o', label='Tangency portfolio')
-    # plt.plot(sigma_opt, mu_opt, 'o', label='Markowitz optimal portfolio')
-    # for i in np.arange(gamma.shape[0]):
-    #     plt.annotate(xy=[sigma_opt[i], mu_opt[i]], s='({0:.3f}, {1:.3f}), gamma = {2}, Sharpe Ratio = {3:.3f}'.format(sigma_opt[i], mu_opt[i], gamma[i], sr_opt[i]))
-
-    # plt.title('Overview')
-    # plt.xlabel('Portfolio standard deviation (i.e. risk)')
-    # plt.ylabel('Mean portfolio return (i.e. return)')
-    # plt.legend(loc='best')
 
 
-    # plt.show()
+
+    if plot is True:
+        plt.figure(figsize=(15,10))
+        # plt.plot(<X AXIS VALUES HERE>, <Y AXIS VALUES HERE>, 'line type', label='label here')
+        plt.plot(sigma_p, mu_p, label='Efficient Frontier')
+
+        for portfolio in portfolios:
+            if portfolio['data_type'] == 'scalar':
+                plt.plot(portfolio['sigma'], portfolio['mu'], 'o', label=portfolio['portfolio_type'])
+
+                s = '({0:.3f}, {1:.3f})'.format(portfolio['sigma'], portfolio['mu'])
+                for key, value in portfolio.items():
+                    if key not in ['portfolio_type', 'sigma', 'mu', 'theta', 'data_type']:
+                        s = s + ', {0} = {1:.3f}'.format(key, value)
+
+                plt.annotate(xy=[portfolio['sigma'], portfolio['mu']], s=s)
+            
+            elif portfolio['data_type'] == 'array':
+                plt.plot(portfolio['sigma'], portfolio['mu'], 'o', label=portfolio['portfolio_type'])
+
+                for i in np.arange(portfolio['sigma'].shape[0]):
+
+                    s = '({0:.3f}, {1:.3f})'.format(portfolio['sigma'][i], portfolio['mu'][i])
+                    for key, value in portfolio.items():
+                        if key not in ['portfolio_type', 'sigma', 'mu', 'theta', 'data_type']:
+                            s = s + ', {0} = {1:.3f}'.format(key, value[i])
+
+                    plt.annotate(xy=[portfolio['sigma'][i], portfolio['mu'][i]], s=s)
+
+
+        plt.title('Overview')
+        plt.xlabel('Portfolio standard deviation (i.e. risk)')
+        plt.ylabel('Mean portfolio return (i.e. return)')
+        plt.legend(loc='best')
+
+
+        plt.show()
+
+    return 0
